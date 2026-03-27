@@ -14,7 +14,215 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audio_tracks: {
+        Row: {
+          created_at: string
+          file_url: string
+          id: string
+          is_active: boolean | null
+          novel_id: string
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_url: string
+          id?: string
+          is_active?: boolean | null
+          novel_id: string
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_url?: string
+          id?: string
+          is_active?: boolean | null
+          novel_id?: string
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audio_tracks_novel_id_fkey"
+            columns: ["novel_id"]
+            isOneToOne: false
+            referencedRelation: "novels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chapters: {
+        Row: {
+          chapter_number: number
+          content_text: string | null
+          created_at: string
+          id: string
+          novel_id: string
+          summary: string | null
+          title: string | null
+          updated_at: string
+          word_count: number | null
+        }
+        Insert: {
+          chapter_number: number
+          content_text?: string | null
+          created_at?: string
+          id?: string
+          novel_id: string
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+          word_count?: number | null
+        }
+        Update: {
+          chapter_number?: number
+          content_text?: string | null
+          created_at?: string
+          id?: string
+          novel_id?: string
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+          word_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapters_novel_id_fkey"
+            columns: ["novel_id"]
+            isOneToOne: false
+            referencedRelation: "novels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      characters: {
+        Row: {
+          abilities: string | null
+          created_at: string
+          id: string
+          is_edited_by_user: boolean | null
+          name: string
+          novel_id: string
+          personality: string | null
+          physical_traits: string | null
+          relationships: string | null
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          abilities?: string | null
+          created_at?: string
+          id?: string
+          is_edited_by_user?: boolean | null
+          name: string
+          novel_id: string
+          personality?: string | null
+          physical_traits?: string | null
+          relationships?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          abilities?: string | null
+          created_at?: string
+          id?: string
+          is_edited_by_user?: boolean | null
+          name?: string
+          novel_id?: string
+          personality?: string | null
+          physical_traits?: string | null
+          relationships?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "characters_novel_id_fkey"
+            columns: ["novel_id"]
+            isOneToOne: false
+            referencedRelation: "novels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      master_concepts: {
+        Row: {
+          content_text: string
+          created_at: string
+          id: string
+          novel_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_text?: string
+          created_at?: string
+          id?: string
+          novel_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_text?: string
+          created_at?: string
+          id?: string
+          novel_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "master_concepts_novel_id_fkey"
+            columns: ["novel_id"]
+            isOneToOne: false
+            referencedRelation: "novels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      novels: {
+        Row: {
+          cover_url: string | null
+          created_at: string
+          genre: string[] | null
+          id: string
+          language: string | null
+          settings_json: Json | null
+          status: string | null
+          style: string | null
+          synopsis: string | null
+          tags: string[] | null
+          target_chapters: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          cover_url?: string | null
+          created_at?: string
+          genre?: string[] | null
+          id?: string
+          language?: string | null
+          settings_json?: Json | null
+          status?: string | null
+          style?: string | null
+          synopsis?: string | null
+          tags?: string[] | null
+          target_chapters?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          cover_url?: string | null
+          created_at?: string
+          genre?: string[] | null
+          id?: string
+          language?: string | null
+          settings_json?: Json | null
+          status?: string | null
+          style?: string | null
+          synopsis?: string | null
+          tags?: string[] | null
+          target_chapters?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
