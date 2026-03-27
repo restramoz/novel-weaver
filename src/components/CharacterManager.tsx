@@ -78,7 +78,7 @@ export function CharacterManager({ novelId }: CharacterManagerProps) {
           <DialogContent>
             <DialogHeader><DialogTitle className="font-display">Karakter Baru</DialogTitle></DialogHeader>
             <CharacterForm
-              onSubmit={(data) => createMut.mutate({ novel_id: novelId, ...data })}
+              onSubmit={(data) => createMut.mutate({ novel_id: novelId, name: data.name || "Unnamed", ...data })}
               isLoading={createMut.isPending}
             />
           </DialogContent>
