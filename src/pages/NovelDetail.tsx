@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchNovel, fetchChapters, fetchMasterConcept, fetchAudioTracks, deleteNovel, addAudioTrack } from "@/lib/api";
+import { fetchNovel, fetchChapters, fetchMasterConcept, fetchAudioTracks, deleteNovel, uploadAudioTrack, deleteAudioTrack } from "@/lib/api";
 import { useStreamGenerate } from "@/hooks/use-stream-generate";
 import { CharacterManager } from "@/components/CharacterManager";
 import { MusicPlayer } from "@/components/MusicPlayer";
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, BookOpen, Sparkles, Users, FileText, Loader2, Trash2, Plus, StopCircle, Music } from "lucide-react";
+import { ArrowLeft, BookOpen, Sparkles, Users, FileText, Loader2, Trash2, Plus, StopCircle, Music, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 const MODELS = [
@@ -32,8 +32,10 @@ const NovelDetail = () => {
   const queryClient = useQueryClient();
   const [selectedModel, setSelectedModel] = useState("gpt-oss:120b-cloud");
   const [addMusicOpen, setAddMusicOpen] = useState(false);
-  const [musicUrl, setMusicUrl] = useState("");
   const [musicTitle, setMusicTitle] = useState("");
+  const [musicFile, setMusicFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { isStreaming, streamedText, error, startStream, stopStream } = useStreamGenerate();
 
@@ -61,12 +63,7 @@ const NovelDetail = () => {
     enabled: !!id,
   });
 
-  // Auto-generate master concept for new novels
-  useEffect(() => {
-    if (novel && !masterConcept && !isStreaming && chapters.length === 0) {
-      startStream(novel.id, "master_concept", selectedModel);
-    }
-  }, [novel?.id, masterConcept]);
+  // NO auto-generate — all generation is manual now
 
   const handleGenerateChapter = () => {
     if (!id) return;
@@ -90,21 +87,34 @@ const NovelDetail = () => {
     navigate("/");
   };
 
-  const handleAddMusic = async () => {
-    if (!id || !musicUrl.trim()) return;
-    await addAudioTrack({ novel_id: id, file_url: musicUrl.trim(), title: musicTitle.trim() || undefined });
+  const handleUploadMusic = async () => {
+    if (!id || !musicFile) return;
+    setIsUploading(true);
+    try {
+      await uploadAudioTrack(musicFile, id, musicTitle.trim() || undefined);
+      queryClient.invalidateQueries({ queryKey: ["audioTracks", id] });
+      setAddMusicOpen(false);
+      setMusicFile(null);
+      setMusicTitle("");
+      toast.success("Musik berhasil diupload");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteTrack = async (trackId: string) => {
+    if (!confirm("Hapus track ini?")) return;
+    await deleteAudioTrack(trackId);
     queryClient.invalidateQueries({ queryKey: ["audioTracks", id] });
-    setAddMusicOpen(false);
-    setMusicUrl("");
-    setMusicTitle("");
-    toast.success("Musik ditambahkan");
+    toast.success("Track dihapus");
   };
 
   useEffect(() => {
     if (error) toast.error(error);
   }, [error]);
 
-  // Refetch after streaming is done
   useEffect(() => {
     if (!isStreaming && streamedText) {
       queryClient.invalidateQueries({ queryKey: ["chapters", id] });
@@ -206,7 +216,10 @@ const NovelDetail = () => {
                           <span className="text-xs text-muted-foreground font-mono w-8">#{ch.chapter_number}</span>
                           <div className="min-w-0">
                             <p className="font-medium text-sm text-foreground truncate">{ch.title || `Bab ${ch.chapter_number}`}</p>
-                            <p className="text-xs text-muted-foreground">{(ch.word_count || 0).toLocaleString()} kata</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(ch.word_count || 0).toLocaleString()} kata
+                              {ch.summary && " • 📝 Ringkasan"}
+                            </p>
                           </div>
                         </div>
                         <span className="text-xs text-muted-foreground">{new Date(ch.created_at).toLocaleDateString("id-ID")}</span>
@@ -266,7 +279,7 @@ const NovelDetail = () => {
             ) : !isStreaming ? (
               <div className="text-center py-16">
                 <FileText className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-                <p className="text-muted-foreground">Belum ada Master Concept.</p>
+                <p className="text-muted-foreground">Belum ada Master Concept. Klik Generate untuk membuat.</p>
               </div>
             ) : null}
           </TabsContent>
@@ -276,23 +289,26 @@ const NovelDetail = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-display font-semibold text-foreground">Background Music</h2>
               <Button onClick={() => setAddMusicOpen(true)} className="gap-2" size="sm">
-                <Plus className="h-4 w-4" /> Tambah
+                <Upload className="h-4 w-4" /> Upload Musik
               </Button>
             </div>
             {audioTracks.length === 0 ? (
               <div className="text-center py-16">
                 <Music className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-                <p className="text-muted-foreground">Belum ada musik. Tambahkan URL musik untuk menemani membaca.</p>
+                <p className="text-muted-foreground">Belum ada musik. Upload file audio untuk menemani membaca.</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {audioTracks.map((track) => (
                   <Card key={track.id}>
                     <CardContent className="py-3 px-4 flex items-center justify-between">
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-medium text-foreground">{track.title || "Untitled"}</p>
-                        <p className="text-xs text-muted-foreground truncate max-w-sm">{track.file_url}</p>
+                        <p className="text-xs text-muted-foreground truncate max-w-sm">{track.file_url.split("/").pop()}</p>
                       </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteTrack(track.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </CardContent>
                   </Card>
                 ))}
@@ -304,13 +320,31 @@ const NovelDetail = () => {
 
       <MusicPlayer tracks={audioTracks} onAddTrack={() => setAddMusicOpen(true)} />
 
+      {/* Upload Music Dialog */}
       <Dialog open={addMusicOpen} onOpenChange={setAddMusicOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="font-display">Tambah Musik</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Judul</Label><Input value={musicTitle} onChange={(e) => setMusicTitle(e.target.value)} placeholder="Judul musik..." /></div>
-            <div><Label>URL File (mp3/wav)</Label><Input value={musicUrl} onChange={(e) => setMusicUrl(e.target.value)} placeholder="https://..." /></div>
-            <Button onClick={handleAddMusic} className="w-full" disabled={!musicUrl.trim()}>Tambah</Button>
+          <DialogHeader><DialogTitle className="font-display">Upload Musik</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Judul (opsional)</Label>
+              <Input value={musicTitle} onChange={(e) => setMusicTitle(e.target.value)} placeholder="Judul musik..." />
+            </div>
+            <div>
+              <Label>File Audio (mp3/wav/ogg)</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="audio/*,.mp3,.wav,.ogg,.webm"
+                onChange={(e) => setMusicFile(e.target.files?.[0] || null)}
+                className="mt-1 block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+              />
+              {musicFile && (
+                <p className="text-xs text-muted-foreground mt-1">{musicFile.name} ({(musicFile.size / 1024 / 1024).toFixed(1)} MB)</p>
+              )}
+            </div>
+            <Button onClick={handleUploadMusic} className="w-full gap-2" disabled={!musicFile || isUploading}>
+              {isUploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Mengupload...</> : <><Upload className="h-4 w-4" /> Upload</>}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

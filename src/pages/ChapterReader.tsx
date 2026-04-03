@@ -1,22 +1,26 @@
-import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchChapter, fetchChapters, fetchNovel, fetchAudioTracks } from "@/lib/api";
+import { fetchChapter, fetchChapters, fetchNovel, fetchAudioTracks, updateChapter } from "@/lib/api";
 import { useStreamGenerate } from "@/hooks/use-stream-generate";
 import { ChapterReaderView } from "@/components/ChapterReaderView";
 import { MusicPlayer } from "@/components/MusicPlayer";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, List, Minus, Plus, Sparkles, Loader2, StopCircle, Sun, Moon } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, List, Minus, Plus, Sparkles, Loader2, StopCircle, Sun, Moon, Pencil, Eye, Save } from "lucide-react";
 import { toast } from "sonner";
 
 const ChapterReader = () => {
   const { novelId, chapterId } = useParams<{ novelId: string; chapterId: string }>();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [fontSize, setFontSize] = useState(18);
   const [isDark, setIsDark] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const { isStreaming, streamedText, error, startStream, stopStream } = useStreamGenerate();
 
@@ -61,9 +65,38 @@ const ChapterReader = () => {
     }
   }, [isStreaming]);
 
+  // Populate edit content when chapter loads
+  useEffect(() => {
+    if (chapter?.content_text) {
+      setEditContent(chapter.content_text);
+    }
+  }, [chapter?.content_text]);
+
   const handleGenerateNext = () => {
     if (!novelId) return;
     startStream(novelId, "chapter");
+  };
+
+  const handleStartEdit = () => {
+    setEditContent(chapter?.content_text || "");
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!chapterId) return;
+    setIsSaving(true);
+    try {
+      const wordCount = editContent.split(/\s+/).filter(Boolean).length;
+      await updateChapter(chapterId, { content_text: editContent, word_count: wordCount });
+      queryClient.invalidateQueries({ queryKey: ["chapter", chapterId] });
+      queryClient.invalidateQueries({ queryKey: ["chapters", novelId] });
+      setIsEditing(false);
+      toast.success("Bab berhasil disimpan");
+    } catch (err) {
+      toast.error("Gagal menyimpan: " + (err as Error).message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const currentIdx = chapters.findIndex((c) => c.id === chapterId);
@@ -72,7 +105,7 @@ const ChapterReader = () => {
 
   return (
     <div className="min-h-screen bg-novel-paper flex flex-col">
-      {/* Minimal Header */}
+      {/* Header */}
       <header className="border-b border-border bg-card/90 backdrop-blur-sm py-2 px-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Link to={`/novel/${novelId}`}>
@@ -82,6 +115,24 @@ const ChapterReader = () => {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Edit/View toggle */}
+          {chapter && !isStreaming && (
+            isEditing ? (
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsEditing(false)}>
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button variant="default" size="icon" className="h-8 w-8" onClick={handleSaveEdit} disabled={isSaving}>
+                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                </Button>
+              </div>
+            ) : (
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleStartEdit}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )
+          )}
+
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setFontSize(Math.max(14, fontSize - 2))}>
             <Minus className="h-3 w-3" />
           </Button>
@@ -119,9 +170,19 @@ const ChapterReader = () => {
         </div>
       </header>
 
-      {/* Reader Content */}
+      {/* Reader / Editor Content */}
       <div className="flex-1">
-        {chapter ? (
+        {isEditing && chapter ? (
+          <div className="max-w-3xl mx-auto px-4 py-8">
+            <p className="text-sm text-muted-foreground mb-3">Mode Edit — Bab {chapter.chapter_number}</p>
+            <Textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              className="min-h-[70vh] font-serif text-base leading-relaxed resize-none"
+              style={{ fontSize: `${fontSize}px` }}
+            />
+          </div>
+        ) : chapter ? (
           <ChapterReaderView
             content={chapter.content_text || ""}
             title={chapter.title || undefined}
@@ -152,6 +213,11 @@ const ChapterReader = () => {
           )}
         </div>
         <div className="flex gap-2">
+          {chapter?.summary && (
+            <span className="text-xs text-muted-foreground self-center max-w-48 truncate" title={chapter.summary}>
+              📝 Ringkasan ada
+            </span>
+          )}
           {nextChapter ? (
             <Link to={`/novel/${novelId}/chapter/${nextChapter.id}`}>
               <Button variant="ghost" size="sm" className="text-xs">Bab Selanjutnya →</Button>

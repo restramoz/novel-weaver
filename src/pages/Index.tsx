@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { fetchNovels } from "@/lib/api";
+import { fetchNovels, fetchAllAudioTracks } from "@/lib/api";
 import { CreateNovelDialog } from "@/components/CreateNovelDialog";
+import { MusicPlayer } from "@/components/MusicPlayer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,11 @@ const Index = () => {
   const { data: novels = [], isLoading } = useQuery({
     queryKey: ["novels"],
     queryFn: fetchNovels,
+  });
+
+  const { data: audioTracks = [] } = useQuery({
+    queryKey: ["allAudioTracks"],
+    queryFn: fetchAllAudioTracks,
   });
 
   const filtered = novels.filter((n) => {
@@ -134,6 +140,9 @@ const Index = () => {
       </main>
 
       <CreateNovelDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
+
+      {/* Global Music Player on Home */}
+      <MusicPlayer tracks={audioTracks} />
     </div>
   );
 };

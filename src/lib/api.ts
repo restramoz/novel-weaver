@@ -8,6 +8,9 @@ export type MasterConcept = Tables<"master_concepts">;
 export type AudioTrack = Tables<"audio_tracks">;
 
 const GENERATE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate`;
+const UPLOAD_AUDIO_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-audio`;
+
+// ── Novel CRUD ──
 
 export async function fetchNovels() {
   const { data, error } = await supabase
@@ -41,6 +44,8 @@ export async function deleteNovel(id: string) {
   if (error) throw error;
 }
 
+// ── Chapters ──
+
 export async function fetchChapters(novelId: string) {
   const { data, error } = await supabase
     .from("chapters")
@@ -62,6 +67,8 @@ export async function updateChapter(id: string, updates: Partial<Chapter>) {
   if (error) throw error;
   return data;
 }
+
+// ── Characters ──
 
 export async function fetchCharacters(novelId: string) {
   const { data, error } = await supabase
@@ -95,11 +102,15 @@ export async function createCharacter(char: { novel_id: string; name: string; ro
   return data;
 }
 
+// ── Master Concept ──
+
 export async function fetchMasterConcept(novelId: string) {
   const { data, error } = await supabase.from("master_concepts").select("*").eq("novel_id", novelId).single();
   if (error && error.code !== "PGRST116") throw error;
   return data;
 }
+
+// ── Audio Tracks ──
 
 export async function fetchAudioTracks(novelId: string) {
   const { data, error } = await supabase.from("audio_tracks").select("*").eq("novel_id", novelId);
@@ -107,16 +118,41 @@ export async function fetchAudioTracks(novelId: string) {
   return data;
 }
 
-export async function addAudioTrack(track: { novel_id: string; file_url: string; title?: string }) {
-  const { data, error } = await supabase.from("audio_tracks").insert(track).select().single();
+export async function fetchAllAudioTracks() {
+  const { data, error } = await supabase.from("audio_tracks").select("*, novels(title)").eq("is_active", true);
   if (error) throw error;
   return data;
+}
+
+export async function uploadAudioTrack(file: File, novelId: string, title?: string): Promise<AudioTrack> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("novel_id", novelId);
+  if (title) formData.append("title", title);
+
+  const resp = await fetch(UPLOAD_AUDIO_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    },
+    body: formData,
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: "Upload gagal" }));
+    throw new Error(err.error || `Error ${resp.status}`);
+  }
+
+  const { track } = await resp.json();
+  return track;
 }
 
 export async function deleteAudioTrack(id: string) {
   const { error } = await supabase.from("audio_tracks").delete().eq("id", id);
   if (error) throw error;
 }
+
+// ── Streaming Generate ──
 
 export interface StreamCallbacks {
   onDelta: (text: string) => void;
@@ -189,16 +225,14 @@ export async function streamGenerate(
   }
 }
 
-// Text parser utility for cleaning AI output
+// ── Text Parser ──
+
 export function parseNovelText(raw: string): string {
   let text = raw;
-  // Remove markdown artifacts but keep headings
   text = text.replace(/\*\*\*/g, "");
   text = text.replace(/\*\*/g, "");
   text = text.replace(/\*/g, "");
-  // Clean up excessive newlines
   text = text.replace(/\n{4,}/g, "\n\n\n");
-  // Fix dialog formatting
   text = text.replace(/[\"\"]([^\"\"]+)[\"\"]/g, '"$1"');
   return text.trim();
 }
