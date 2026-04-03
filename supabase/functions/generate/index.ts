@@ -278,12 +278,18 @@ serve(async (req) => {
                     const chapterTitle = titleMatch ? titleMatch[1].trim() : `Bab ${nextChapterNum}`;
                     const wordCount = fullContent.split(/\s+/).length;
                     
+                    // Generate a summary (first 3 sentences or 200 chars)
+                    const cleanText = fullContent.replace(/^#.*$/m, "").trim();
+                    const sentences = cleanText.split(/[.!?。！？]+/).filter(s => s.trim().length > 10);
+                    const summary = sentences.slice(0, 3).join(". ").substring(0, 300).trim() + "...";
+                    
                     await supabase.from("chapters").insert({
                       novel_id: novelId,
                       chapter_number: nextChapterNum,
                       title: chapterTitle,
                       content_text: fullContent,
                       word_count: wordCount,
+                      summary: summary,
                     });
                   } else if (type === "master_concept") {
                     const { data: existing } = await supabase.from("master_concepts").select("id").eq("novel_id", novelId).single();
